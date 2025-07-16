@@ -5,7 +5,7 @@ from strategies.macd_strategy_trailing import apply_macd_strategy
 from strategies.bollinger_strategy_trailing import apply_bollinger_strategy
 from strategies.ma_cross_strategy_trailing import apply_ma_cross_strategy
 from strategies.custom_strategy_trailing import apply_custom_strategy
-from services.simulation import simulate_order
+from services.simulation import Simulation
 from services.logger import log_trade
 from settings import CHECK_INTERVAL_SECONDS, SYMBOL, TIMEFRAME
 
@@ -16,6 +16,8 @@ def select_best_timeframe():
 if __name__ == "__main__":
     current_timeframe = select_best_timeframe()
     print(f"\n[INFO] Using timeframe: {current_timeframe}\n")
+
+    simulation = Simulation()
 
     strategies = {
         "RSI": apply_rsi_strategy,
@@ -36,7 +38,7 @@ if __name__ == "__main__":
                 print(f"[{name}] Signal: {signal or '-'} | Value: {round(value, 2)} | Price: {price}")
                 log_trade(timestamp, SYMBOL, current_timeframe, value, price, signal, strategy_name=name)
                 if signal:
-                    simulate_order(signal, price)
+                    simulation.place_order(signal, price)
 
             time.sleep(CHECK_INTERVAL_SECONDS)
         except Exception as e:
