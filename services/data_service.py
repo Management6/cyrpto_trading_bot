@@ -18,6 +18,9 @@ def fetch_ohlcv(symbol="BTC/USDT", timeframe="5m", limit=100):
     ohlcv = binance.fetch_ohlcv(symbol, timeframe, limit=limit)
     df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    # many strategy modules expect a ``price`` column which mirrors ``close``.
+    # add it here to avoid ``KeyError: 'price'`` during strategy execution.
+    df['price'] = df['close']
     return df
 
 def get_available_timeframes():

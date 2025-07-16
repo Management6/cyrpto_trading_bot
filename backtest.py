@@ -16,6 +16,7 @@ if __name__ == "__main__":
         "CUSTOM": apply_custom_strategy,
     }
 
+
     tester = Backtester(strategies)
     results = tester.run(SYMBOL, TIMEFRAME, limit=500)
 

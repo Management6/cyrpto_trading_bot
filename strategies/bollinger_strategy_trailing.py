@@ -1,7 +1,13 @@
 import pandas as pd
 import ta
 
-def apply_bollinger_strategy(df, trailing_pct=0.015):
+
+def apply_bollinger_strategy(df, trailing_pct=0.015, return_df=False):
+    """Apply Bollinger Bands strategy with trailing stop."""
+    df = df.copy()
+    if 'price' not in df.columns:
+        df['price'] = df['close']
+
     bb = ta.volatility.BollingerBands(close=df['price'], window=20, window_dev=2)
     df['bb_upper'] = bb.bollinger_hband()
     df['bb_lower'] = bb.bollinger_lband()
@@ -36,4 +42,15 @@ def apply_bollinger_strategy(df, trailing_pct=0.015):
                 signals.append({'timestamp': timestamp, 'signal': 'SELL', 'price': price, 'value': upper})
                 position = None
 
-    return pd.DataFrame(signals)
+    signals_df = pd.DataFrame(signals)
+
+    latest_signal = None
+    if not signals_df.empty and signals_df.iloc[-1]['timestamp'] == df.index[-1]:
+        latest_signal = signals_df.iloc[-1]['signal']
+
+    latest_value = df['price'].iloc[-1]
+
+    if return_df:
+        return latest_signal, latest_value, signals_df
+
+    return latest_signal, latest_value
