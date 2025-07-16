@@ -4,6 +4,10 @@ import ta
 
 def apply_bollinger_strategy(df, trailing_pct=0.015, return_df=False):
     """Apply Bollinger Bands strategy with trailing stop."""
+    df = df.copy()
+    if 'price' not in df.columns:
+        df['price'] = df['close']
+
     bb = ta.volatility.BollingerBands(close=df['price'], window=20, window_dev=2)
     df['bb_upper'] = bb.bollinger_hband()
     df['bb_lower'] = bb.bollinger_lband()

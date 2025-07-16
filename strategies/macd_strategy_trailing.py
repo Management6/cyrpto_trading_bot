@@ -4,6 +4,10 @@ import ta
 
 def apply_macd_strategy(df, trailing_pct=0.015, return_df=False):
     """Apply MACD strategy with trailing stop."""
+    df = df.copy()
+    if 'price' not in df.columns:
+        df['price'] = df['close']
+
     macd = ta.trend.MACD(close=df['price'])
     df['macd'] = macd.macd()
     df['signal_line'] = macd.macd_signal()

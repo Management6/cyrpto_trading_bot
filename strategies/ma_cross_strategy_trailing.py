@@ -3,6 +3,10 @@ import pandas as pd
 
 def apply_ma_cross_strategy(df, trailing_pct=0.015, return_df=False):
     """Moving Average cross strategy with trailing stop."""
+    df = df.copy()
+    if 'price' not in df.columns:
+        df['price'] = df['close']
+
     df['ma_short'] = df['price'].rolling(window=5).mean()
     df['ma_long'] = df['price'].rolling(window=20).mean()
     df.dropna(inplace=True)
