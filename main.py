@@ -32,7 +32,7 @@ if __name__ == "__main__":
             timestamp = df.iloc[-1]['timestamp']
 
             for name, strategy in strategies.items():
-                signal, value = strategy(df.copy())
+                signal, value, *_ = strategy(df.copy())
                 print(f"[{name}] Signal: {signal or '-'} | Value: {round(value, 2)} | Price: {price}")
                 log_trade(timestamp, SYMBOL, current_timeframe, value, price, signal, strategy_name=name)
                 if signal:

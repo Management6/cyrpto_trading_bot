@@ -1,7 +1,9 @@
 import pandas as pd
 import ta
 
-def apply_macd_strategy(df, trailing_pct=0.015):
+
+def apply_macd_strategy(df, trailing_pct=0.015, return_df=False):
+    """Apply MACD strategy with trailing stop."""
     macd = ta.trend.MACD(close=df['price'])
     df['macd'] = macd.macd()
     df['signal_line'] = macd.macd_signal()
@@ -35,4 +37,15 @@ def apply_macd_strategy(df, trailing_pct=0.015):
                 signals.append({'timestamp': timestamp, 'signal': 'SELL', 'price': price, 'value': macd_val})
                 position = None
 
-    return pd.DataFrame(signals)
+    signals_df = pd.DataFrame(signals)
+
+    latest_signal = None
+    if not signals_df.empty and signals_df.iloc[-1]['timestamp'] == df.index[-1]:
+        latest_signal = signals_df.iloc[-1]['signal']
+
+    latest_value = df['macd'].iloc[-1]
+
+    if return_df:
+        return latest_signal, latest_value, signals_df
+
+    return latest_signal, latest_value

@@ -1,6 +1,8 @@
 import pandas as pd
 
-def apply_ma_cross_strategy(df, trailing_pct=0.015):
+
+def apply_ma_cross_strategy(df, trailing_pct=0.015, return_df=False):
+    """Moving Average cross strategy with trailing stop."""
     df['ma_short'] = df['price'].rolling(window=5).mean()
     df['ma_long'] = df['price'].rolling(window=20).mean()
     df.dropna(inplace=True)
@@ -34,4 +36,15 @@ def apply_ma_cross_strategy(df, trailing_pct=0.015):
                 signals.append({'timestamp': timestamp, 'signal': 'SELL', 'price': price, 'value': short})
                 position = None
 
-    return pd.DataFrame(signals)
+    signals_df = pd.DataFrame(signals)
+
+    latest_signal = None
+    if not signals_df.empty and signals_df.iloc[-1]['timestamp'] == df.index[-1]:
+        latest_signal = signals_df.iloc[-1]['signal']
+
+    latest_value = df['ma_short'].iloc[-1]
+
+    if return_df:
+        return latest_signal, latest_value, signals_df
+
+    return latest_signal, latest_value

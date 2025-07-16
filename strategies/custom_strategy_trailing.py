@@ -1,7 +1,9 @@
 import pandas as pd
 import ta
 
-def apply_custom_strategy(df, trailing_pct=0.015):
+
+def apply_custom_strategy(df, trailing_pct=0.015, return_df=False):
+    """Custom RSI/price momentum strategy with trailing stop."""
     df['rsi'] = ta.momentum.RSIIndicator(close=df['price'], window=14).rsi()
     df['low_20'] = df['price'].rolling(window=20).min()
     df.dropna(inplace=True)
@@ -37,4 +39,15 @@ def apply_custom_strategy(df, trailing_pct=0.015):
                 signals.append({'timestamp': timestamp, 'signal': 'SELL', 'price': price, 'value': rsi})
                 position = None
 
-    return pd.DataFrame(signals)
+    signals_df = pd.DataFrame(signals)
+
+    latest_signal = None
+    if not signals_df.empty and signals_df.iloc[-1]['timestamp'] == df.index[-1]:
+        latest_signal = signals_df.iloc[-1]['signal']
+
+    latest_value = df['rsi'].iloc[-1]
+
+    if return_df:
+        return latest_signal, latest_value, signals_df
+
+    return latest_signal, latest_value
