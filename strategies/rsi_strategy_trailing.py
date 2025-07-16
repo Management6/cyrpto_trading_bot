@@ -21,6 +21,10 @@ def apply_rsi_strategy(df, trailing_pct=0.015, return_df=False):
         ``return_df`` is ``True``.
     """
 
+    df = df.copy()
+    if 'price' not in df.columns:
+        df['price'] = df['close']
+
     df['rsi'] = ta.momentum.RSIIndicator(close=df['price'], window=14).rsi()
     df.dropna(inplace=True)
 
