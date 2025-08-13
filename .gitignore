@@ -1,3 +1,18 @@
+# Secrets / env
 .env
-*/__pycache__/*
-*.pyc
+.env.* 
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+
+# Local outputs
+logs/
+data/
+*.log
