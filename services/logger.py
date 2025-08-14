@@ -1,15 +1,33 @@
-import csv
-import os
+# services/logger.py
+import os, csv, math
 
-def log_trade(timestamp, symbol, timeframe, indicator_value, price, signal, strategy_name="RSI"):
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"{strategy_name.lower()}_log.csv")
+def _safe_round(x, ndigits=2):
+    """Return rounded float or empty string for None/NaN/non-numeric."""
+    try:
+        if x is None:
+            return ""
+        fx = float(x)
+        if math.isnan(fx):
+            return ""
+        return round(fx, ndigits)
+    except (ValueError, TypeError):
+        return ""
 
-    write_header = not os.path.exists(log_file)
+def log_trade(timestamp, symbol, timeframe, indicator_value, price, signal, strategy_name="UNKNOWN"):
+    os.makedirs("logs", exist_ok=True)
+    path = os.path.join("logs", f"{str(strategy_name).lower()}_log.csv")
+    write_header = not os.path.exists(path)
 
-    with open(log_file, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
         if write_header:
-            writer.writerow(["timestamp", "symbol", "timeframe", "value", "price", "signal"])
-        writer.writerow([timestamp, symbol, timeframe, round(indicator_value, 2), round(price, 2), signal or "-"])
+            w.writerow(["timestamp","symbol","timeframe","value","price","signal","strategy_name"])
+        w.writerow([
+            timestamp,
+            symbol,
+            timeframe,
+            _safe_round(indicator_value),
+            _safe_round(price),
+            (signal if signal else "-"),
+            strategy_name
+        ])

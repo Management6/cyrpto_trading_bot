@@ -1,56 +1,38 @@
+import os
 import pandas as pd
-import ta
+from ta.volatility import BollingerBands
 
+BB_LEN = int(os.getenv("BB_LEN", "20"))
+BB_STD = float(os.getenv("BB_STD", "2"))
+BB_BW_MIN = float(os.getenv("BB_BW_MIN", "0.01"))  # min band width (1%) to avoid chop
 
-def apply_bollinger_strategy(df, trailing_pct=0.015, return_df=False):
-    """Apply Bollinger Bands strategy with trailing stop."""
-    df = df.copy()
-    if 'price' not in df.columns:
-        df['price'] = df['close']
+def apply_bollinger_strategy(df: pd.DataFrame):
+    # Guard: need enough rows and a close column
+    if df is None or "close" not in df.columns or len(df) < BB_LEN + 2:
+        return None, None
 
-    bb = ta.volatility.BollingerBands(close=df['price'], window=20, window_dev=2)
-    df['bb_upper'] = bb.bollinger_hband()
-    df['bb_lower'] = bb.bollinger_lband()
-    df['bb_middle'] = bb.bollinger_mavg()
-    df.dropna(inplace=True)
+    close = df["close"].astype(float)
 
-    signals = []
-    position = None
-    entry_price = 0
-    stop_price = 0
-    peak_price = 0
+    bb = BollingerBands(close=close, window=BB_LEN, window_dev=BB_STD, fillna=False)
+    mid = bb.bollinger_mavg()
+    low = bb.bollinger_lband()
+    high = bb.bollinger_hband()
 
-    for i in range(1, len(df)):
-        timestamp = df.index[i]
-        price = df['price'].iloc[i]
-        lower = df['bb_lower'].iloc[i]
-        upper = df['bb_upper'].iloc[i]
+    # Band width (% of mid) – we’ll skip signals when volatility is tiny
+    bw = (high - low) / mid.replace(0, pd.NA)
+    enough_vol = bw > BB_BW_MIN
 
-        if price < lower and position is None:
-            signals.append({'timestamp': timestamp, 'signal': 'BUY', 'price': price, 'value': lower})
-            position = 'LONG'
-            entry_price = price
-            stop_price = price * (1 - trailing_pct)
-            peak_price = price
+    # Mean-reversion style:
+    # BUY when price crosses back up through the lower band (after being below),
+    # SELL when price crosses down through the mid band (take profit/exit)
+    cross_up_low   = (close.shift(1) < low.shift(1)) & (close >= low) & enough_vol
+    cross_down_mid = (close.shift(1) >= mid.shift(1)) & (close <  mid)
 
-        elif position == 'LONG':
-            if price > peak_price:
-                peak_price = price
-                stop_price = max(stop_price, peak_price * (1 - trailing_pct))
+    signal = None
+    if bool(cross_up_low.iloc[-1]):
+        signal = "BUY"
+    elif bool(cross_down_mid.iloc[-1]):
+        signal = "SELL"
 
-            if price < stop_price:
-                signals.append({'timestamp': timestamp, 'signal': 'SELL', 'price': price, 'value': upper})
-                position = None
-
-    signals_df = pd.DataFrame(signals)
-
-    latest_signal = None
-    if not signals_df.empty and signals_df.iloc[-1]['timestamp'] == df.index[-1]:
-        latest_signal = signals_df.iloc[-1]['signal']
-
-    latest_value = df['price'].iloc[-1]
-
-    if return_df:
-        return latest_signal, latest_value, signals_df
-
-    return latest_signal, latest_value
+    # Return a useful value to print; band width is a nice diagnostic
+    return signal, float(bw.iloc[-1])

@@ -16,7 +16,7 @@ SYMBOL = os.getenv("SYMBOL", "BTC/USDT")
 TIMEFRAME = os.getenv("TIMEFRAME", "1m")
 CHECK_INTERVAL_SECONDS = 0.01   # fast-forward (10 ms per "bar")
 
-# ---- NEW: simple execution logger for paper fills ----
+# --- exec logger (paper fills) ---
 LOG_DIR = Path("logs"); LOG_DIR.mkdir(exist_ok=True)
 EXEC = LOG_DIR / "exec_log.csv"
 if not EXEC.exists():
@@ -27,13 +27,17 @@ def log_exec(ts, strat, side, price):
     with open(EXEC, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([ts, strat, side, f"{float(price):.2f}"])
 
-# Optional: turn on strict gating later (BUY only when flat, SELL only when long)
-ENFORCE_TRANSITIONS = False
-pos = {"RSI":0, "MACD":0, "BOLLINGER":0, "MA_CROSS":0, "CUSTOM":0}
+# --- options ---
+ENFORCE_TRANSITIONS = True  # BUY only when flat; SELL only when long (set False to log every BUY/SELL)
 
-# Load local candles
+# --- state ---
+pos = {"RSI":0, "MACD":0, "BOLLINGER":0, "MA_CROSS":0, "CUSTOM":0}
+exec_rows = 0
+
+# --- data ---
 df_all = pd.read_csv("data/BTCUSDT-1m-sample.csv", parse_dates=["timestamp"])
 
+# --- strategies ---
 strategies = {
     "RSI": apply_rsi_strategy,
     "MACD": apply_macd_strategy,
@@ -44,11 +48,28 @@ strategies = {
 
 sim = Simulation()
 
+def normalize_side(sig) -> str | None:
+    """Map many signal variants to 'BUY'/'SELL'; return None for hold/unknown."""
+    if sig is None:
+        return None
+    s = str(sig).strip().upper()
+    if s in ("BUY","LONG","OPEN_LONG","GO_LONG","ENTER_LONG"):
+        return "BUY"
+    if s in ("SELL","SHORT","CLOSE_LONG","EXIT","EXIT_LONG","CLOSE","CLOSE_POSITION"):
+        return "SELL"
+    if "BUY" in s:
+        return "BUY"
+    if "SELL" in s:
+        return "SELL"
+    return None
+
 print(f"\n[OFFLINE] Replaying {len(df_all)} candles for {SYMBOL} @ {TIMEFRAME}\n")
 
-# keep your original warmup pattern
-for i in range(max(60, len(df_all))):
-    if i >= len(df_all): break
+# simple warmup so indicators have history
+WARMUP = 120
+for i in range(max(WARMUP, len(df_all))):
+    if i >= len(df_all):
+        break
     df = df_all.iloc[: i + 1].copy()
     price = float(df.iloc[-1]["close"])
     ts = df.iloc[-1]["timestamp"]
@@ -57,30 +78,32 @@ for i in range(max(60, len(df_all))):
         try:
             signal, value, *_ = strat(df)
         except Exception as e:
-            print(f"[{name}] error: {e}")
+            # indicator not ready yet; skip
             continue
 
-        val_str = f"{value:.2f}" if value is not None else "-"
-        print(f"[{name}] Signal: {signal or '-'} | Value: {val_str} | Price: {price}")
+        # keep your existing signal log
         log_trade(ts, SYMBOL, TIMEFRAME, value, price, signal, strategy_name=name)
 
-        if signal:
-            sig = str(signal).strip().upper()  # normalize
-            if ENFORCE_TRANSITIONS:
-                if sig == "BUY" and pos[name] == 0:
-                    sim.place_order("BUY", price)
-                    log_exec(ts, name, "BUY", price)
-                    pos[name] = 1
-                elif sig == "SELL" and pos[name] == 1:
-                    sim.place_order("SELL", price)
-                    log_exec(ts, name, "SELL", price)
-                    pos[name] = 0
-            else:
-                # behave like your working version (execute on any truthy signal)
-                sim.place_order(sig, price)
-                if sig in ("BUY","SELL"):
-                    log_exec(ts, name, sig, price)
+        # normalize and decide whether to log an execution
+        side = normalize_side(signal)
+        if not side:
+            continue
+
+        # still call your simulator so behavior matches your previous runs
+        sim.place_order(side, price)
+
+        if ENFORCE_TRANSITIONS:
+            if side == "BUY" and pos[name] == 0:
+                log_exec(ts, name, "BUY", price); exec_rows += 1
+                pos[name] = 1
+            elif side == "SELL" and pos[name] == 1:
+                log_exec(ts, name, "SELL", price); exec_rows += 1
+                pos[name] = 0
+        else:
+            # log every normalized BUY/SELL regardless of position
+            log_exec(ts, name, side, price); exec_rows += 1
 
     time.sleep(CHECK_INTERVAL_SECONDS)
 
 print("\n[OFFLINE] Done.")
+print(f"Wrote {exec_rows} execution row(s) to {EXEC}")
